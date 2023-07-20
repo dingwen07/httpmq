@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Message Queue Client Tool</title>
+</head>
+<body>
+    <h1>Message Queue Client Tool</h1>
+
+    <div id="register">
+        <h2>Register</h2>
+        <button onclick="register()">Register</button>
+        <div id="sessionId"></div>
+    </div>
+
+    <div id="subscribe">
+        <h2>Subscribe</h2>
+        <input type="text" id="topicSubscribe" placeholder="Enter topic"/>
+        <button onclick="subscribe()">Subscribe</button>
+    </div>
+
+    <div id="publish">
+        <h2>Publish</h2>
+        <input type="text" id="topicPublish" placeholder="Enter topic"/>
+        <textarea id="messagePublish" placeholder="Enter message"></textarea>
+        <input type="number" id="ttlPublish" placeholder="Enter TTL"></input>
+        <button onclick="publish()">Publish</button>
+    </div>
+
+    <div id="receive">
+        <h2>Receive Messages</h2>
+        <button onclick="receive()">Receive</button>
+        <ul id="messagesList"></ul>
+    </div>
+
+    <div id="acknowledge">
+        <h2>Acknowledge Messages</h2>
+        <input type="text" id="topicAcknowledge" placeholder="Enter topic"/>
+        <input type="text" id="messageAcknowledge" placeholder="Enter message ID"/>
+        <button onclick="acknowledge()">Acknowledge</button>
+    </div>
+
+    <script>
+        let sessionId;
+
+        function register() {
+            fetch('/api/register', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    sessionId = data.session_id;
+                    document.getElementById('sessionId').textContent = 'Session ID: ' + sessionId;
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function subscribe() {
+            const topic = document.getElementById('topicSubscribe').value;
+            fetch(`/api/subscribe/${topic}`, {
+                method: 'POST',
+                headers: {
+                    'Session-Id': sessionId
+                }
+            }).catch(error => console.error('Error:', error));
+        }
+
+        function publish() {
+            const topic = document.getElementById('topicPublish').value;
+            const message = document.getElementById('messagePublish').value;
+            const ttl = document.getElementById('ttlPublish').value;
+            fetch(`/api/publish/${topic}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ data: message , ttl: ttl })
+            }).catch(error => console.error('Error:', error));
+        }
+
+        function receive() {
+            fetch(`/api/receive`, {
+                method: 'GET',
+                headers: {
+                    'Session-Id': sessionId
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                const messagesList = document.getElementById('messagesList');
+                messagesList.innerHTML = '';
+                data.messages.forEach(message => {
+                    const listItem = document.createElement('li');
+                    listItem.textContent = `Topic:${message.topic}, Message ID: ${message.message_id}, Data: ${message.data}`;
+                    messagesList.appendChild(listItem);
+                });
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        function acknowledge() {
+            const topic = document.getElementById('topicAcknowledge').value;
+            const message_id = document.getElementById('messageAcknowledge').value;
+            fetch(`/api/acknowledge`, {
+                method: 'POST',
+                headers: {
+                    'Session-Id': sessionId,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ session_id: sessionId, message_id: message_id, topic: topic })
+            }).catch(error => console.error('Error:', error));
+        }
+    </script>
+</body>
+</html>

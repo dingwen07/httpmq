@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Message Queue Admin</title>
+</head>
+<body>
+    <h1>Message Queue Admin</h1>
+
+    <div id="topics">
+        <h2>Topics</h2>
+        <button onclick="loadTopics()">Load Topics</button>
+        <ul id="topicsList">
+        </ul>
+    </div>
+
+    <div id="messages">
+        <h2>Messages</h2>
+        <input type="text" id="topicInput" placeholder="Enter topic"/>
+        <button onclick="loadMessages()">Load Messages</button>
+        <ul id="messagesList">
+        </ul>
+    </div>
+
+    <script>
+        const authKey = 'YourSecretAuthKey';  // Should be stored more securely
+
+        function loadTopics() {
+            fetch('/api/admin/topics', { headers: { 'Auth-Key': authKey } })
+                .then(response => response.json())
+                .then(data => {
+                    const topicsList = document.getElementById('topicsList');
+                    topicsList.innerHTML = '';
+                    data.topics.forEach(topic => {
+                        const listItem = document.createElement('li');
+                        listItem.textContent = topic;
+                        topicsList.appendChild(listItem);
+                    });
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function loadMessages() {
+            const topic = document.getElementById('topicInput').value;
+            fetch(`/api/admin/messages/${topic}`, { headers: { 'Auth-Key': authKey } })
+                .then(response => response.json())
+                .then(data => {
+                    const messagesList = document.getElementById('messagesList');
+                    messagesList.innerHTML = '';
+                    data.messages.forEach(message => {
+                        const listItem = document.createElement('li');
+                        listItem.textContent = `Message ID: ${message.message_id}, Data: ${message.data}, Acked By: ${message.clients_acknowledged.length}`;
+                        messagesList.appendChild(listItem);
+                    });
+                })
+                .catch(error => console.error('Error:', error));
+        }
+    </script>
+</body>
+</html>
