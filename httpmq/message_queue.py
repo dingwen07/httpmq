@@ -9,7 +9,7 @@ class MessageQueue:
     def __init__(self):
         self.lock = threading.Lock()
         self.sessions: dict[str, Session] = {} # session_id -> Session
-        self.topic_messages: dict[str, set[Message]] = defaultdict(set) # topic -> set[Message]
+        self.topic_messages: dict[str, dict[str, Message]] = defaultdict(defaultdict) # topic -> message_id -> Message
 
     def register(self, session_id: str) -> str:
         with self.lock:
@@ -20,7 +20,7 @@ class MessageQueue:
     def publish(self, topic: str, data: any, ttl: int = 3600) -> Message:
         with self.lock:
             message = Message(topic, data, ttl)
-            self.topic_messages[topic].add(message)
+            self.topic_messages[topic][message.message_id] = message
             return message
 
     def subscribe(self, session_id: str, topic: str) -> bool:
@@ -40,8 +40,11 @@ class MessageQueue:
     def acknowledge(self, session_id: str, topic_name: str, message_id: str) -> bool:
         with self.lock:
             session = self.sessions.get(session_id)
-            if session:
-                return session.acknowledge(topic_name, message_id)
+            if session and topic_name in session.subscribed_topics:
+                message = self.topic_messages[topic_name].get(message_id)
+                if message:
+                    message.clients_acknowledged.add(session_id)
+                    return session.acknowledge(topic_name, message_id)
             return False
 
     def receive(self, session_id: str) -> list[Message]:
@@ -50,18 +53,21 @@ class MessageQueue:
             if session:
                 messages: list[Message] = []
                 for topic in session.subscribed_topics:
-                    for message in self.topic_messages[topic]:
+                    for message in self.topic_messages[topic].values():
                         if message.message_id not in session.acknowledged_messages:
                             messages.append(message)
+                messages.sort()
                 return messages
             return []
 
     def get_messages(self, topic: str) -> list[dict]:
         with self.lock:
             messages: list[Message] = []
-            for message in self.topic_messages[topic]:
-                messages.append(message.to_dict_admin())
-            return messages
+            for message in self.topic_messages[topic].values():
+                messages.append(message)
+            messages.sort()
+            mapped_messages: list[dict] = map(lambda message: message.to_dict_admin(), messages)
+            return mapped_messages
 
     def get_topics(self) -> list[str]:
         with self.lock:
@@ -81,12 +87,12 @@ class MessageQueue:
             expired_messages: set[str] = set()
             for messages in self.topic_messages.values():
                 expired_messages_for_topic: list[Message] = []
-                for message in messages:
+                for message in messages.values():
                     if timestamp > message.expire_ts:
                         expired_messages.add(message.topic)
                         expired_messages_for_topic.append(message)
                 for message in expired_messages_for_topic:
-                    messages.remove(message)
+                    del messages[message.message_id]
             # expire acknowledged messages
             for session in self.sessions.values():
                 session.acknowledged_messages.difference_update(expired_messages)

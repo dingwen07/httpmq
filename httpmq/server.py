@@ -8,7 +8,13 @@ app = Flask(__name__)
 mq = MessageQueue()
 
 def validate_admin():
-    return request.headers.get("Auth-Key") == SERVER_SETTINGS["AUTH_KEY"]
+    if request.args.get("key") == SERVER_SETTINGS["AUTH_KEY"]:
+        return True
+    if request.headers.get("Authorization") == SERVER_SETTINGS["AUTH_KEY"]:
+        return True
+    if request.headers.get("Auth-Key") == SERVER_SETTINGS["AUTH_KEY"]:
+        return True
+    return False
 
 @app.route('/api/register', methods=['POST'])
 def register():
@@ -16,18 +22,20 @@ def register():
     mq.register(session_id)
     return jsonify(session_id=session_id), 200
 
-@app.route('/api/publish/<topic>', methods=['POST'])
+@app.route('/api/publish/<path:topic>', methods=['POST'])
 def publish(topic):
     data = request.json.get('data')
-    if 'ttl' in request.json and request.json.get('ttl').isnumeric():
-        ttl = request.json.get('ttl')
-        ttl = int(ttl)
-        message = mq.publish(topic, data, ttl)
-    else:
-        message = mq.publish(topic, data, 30)
+    ttl = 120
+    if 'ttl' in request.json:
+        ttl_req = request.json.get('ttl')
+        if isinstance(ttl_req, int):
+            ttl = ttl_req
+        if isinstance(ttl_req, str) and ttl_req.isdigit():
+            ttl = int(ttl_req)
+    message = mq.publish(topic, data, ttl)
     return jsonify(status='success', message_id=message.message_id, timestamp=message.timestamp), 200
 
-@app.route('/api/subscribe/<topic>', methods=['POST'])
+@app.route('/api/subscribe/<path:topic>', methods=['POST'])
 def subscribe(topic):
     session_id = request.headers.get('Session-Id')
     if not session_id:
@@ -41,13 +49,25 @@ def subscribe(topic):
     else:
         return jsonify({'error': 'session_id not found'}), 400
 
-@app.route('/api/subscribe/<topic>', methods=['DELETE'])
+@app.route('/api/subscribe/<path:topic>', methods=['DELETE'])
 def unsubscribe(topic):
     session_id = request.json.get('session_id')
     if mq.unsubscribe(session_id, topic):
         return jsonify(status='success'), 200
     else:
         return jsonify(error='topic or subscription not found'), 404
+
+@app.route('/api/receive', methods=['GET'])
+def receive():
+    mq.expire()
+    session_id = request.headers.get('Session-Id')
+    if not session_id:
+        session_id = request.args.get('session_id')
+    if session_id in mq.sessions:
+        messages = mq.receive(session_id)
+        return jsonify({'messages': [message.to_dict() for message in messages]}), 200
+    else:
+        return jsonify({'error': 'session not found'}), 404
 
 @app.route('/api/acknowledge', methods=['POST'])
 def acknowledge():
@@ -61,19 +81,6 @@ def acknowledge():
     else:
         return jsonify(error='message invalid or not found'), 404
 
-@app.route('/api/receive', methods=['GET'])
-def receive():
-    mq.expire()
-    session_id = request.headers.get('Session-Id')
-    if not session_id:
-        data = request.get_json(force=True)
-        session_id = data.get('session_id')
-    if session_id in mq.sessions:
-        messages = mq.receive(session_id)
-        return jsonify({'messages': [message.to_dict() for message in messages]}), 200
-    else:
-        return jsonify({'error': 'session not found'}), 404
-
 @app.route('/api/admin/topics', methods=['GET'])
 def admin_topics():
     if not validate_admin():
@@ -81,7 +88,7 @@ def admin_topics():
     topics = [topic for topic in mq.get_topics()]
     return jsonify(topics=topics), 200
 
-@app.route('/api/admin/messages/<topic>', methods=['GET'])
+@app.route('/api/admin/messages/<path:topic>', methods=['GET'])
 def admin_messages(topic):
     if not validate_admin():
         return jsonify(error='Unauthorized'), 401

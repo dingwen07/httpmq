@@ -17,9 +17,27 @@ class Message:
         else:
             return False
     
+    def __cmp__(self, __value: object) -> int:
+        if isinstance(__value, Message):
+            return self.timestamp - __value.timestamp
+        else:
+            return 0
+    
+    def __lt__(self, __value: object) -> bool:
+        if isinstance(__value, Message):
+            return self.timestamp < __value.timestamp
+        else:
+            return False
+    
+    def __gt__(self, __value: object) -> bool:
+        if isinstance(__value, Message):
+            return self.timestamp > __value.timestamp
+        else:
+            return False
+    
     def __hash__(self) -> int:
         return hash(self.message_id)
-
+    
     def to_dict(self) -> dict:
         return {
             'message_id': self.message_id,
