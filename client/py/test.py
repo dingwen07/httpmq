@@ -1,8 +1,3 @@
-import time
-import os
-import sys
-import platform
-import random
 from httpmqclient import HTTPMQClient
 
 if __name__ == '__main__':
