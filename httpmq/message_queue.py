@@ -27,6 +27,7 @@ class MessageQueue:
         with self.lock:
             session = self.sessions.get(session_id)
             if session:
+                session.refresh()
                 return session.subscribe(topic)
             return False
         
@@ -34,23 +35,27 @@ class MessageQueue:
         with self.lock:
             session = self.sessions.get(session_id)
             if session:
+                session.refresh()
                 return session.unsubscribe(topic)
             return False
 
     def acknowledge(self, session_id: str, topic_name: str, message_id: str) -> bool:
         with self.lock:
             session = self.sessions.get(session_id)
-            if session and topic_name in session.subscribed_topics:
-                message = self.topic_messages[topic_name].get(message_id)
-                if message:
-                    message.clients_acknowledged.add(session_id)
-                    return session.acknowledge(topic_name, message_id)
+            if session:
+                session.refresh()
+                if topic_name in session.subscribed_topics:
+                    message = self.topic_messages[topic_name].get(message_id)
+                    if message:
+                        message.clients_acknowledged.add(session_id)
+                        return session.acknowledge(topic_name, message_id)
             return False
 
     def receive(self, session_id: str) -> list[Message]:
         with self.lock:
             session = self.sessions.get(session_id)
             if session:
+                session.refresh()
                 messages: list[Message] = []
                 for topic in session.subscribed_topics:
                     for message in self.topic_messages[topic].values():

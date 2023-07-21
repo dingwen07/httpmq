@@ -1,13 +1,13 @@
 import time
 import os
 import sys
-import io
 import platform
 import requests
 import json
 
 class HTTPMQClient:
     def __init__(self, server_url, session_id = None, stat = True):
+        self.auto_register_key = None
         self.server_url = server_url
         self.session_id = session_id
         self.requests = requests.Session()
@@ -93,7 +93,7 @@ class HTTPMQClient:
             print(f'Acknowledge request failed: {e}')
             return None
     
-    def ack_all(self, messages: list[dict], output: io.TextIOWrapper = sys.stdout) -> list[dict]:
+    def ack_all(self, messages: list[dict], output: bool = True) -> list[dict]:
         resp = []
         messages_len = len(messages)
         for i in range(messages_len):
@@ -101,8 +101,8 @@ class HTTPMQClient:
             topic = message['topic']
             message_id = message['message_id']
             data = message['data']
-            if len(data) > 10:
-                data = data[:7] + '...'
+            if isinstance(data, str) and len(data) > 80:
+                data = data[:80] + '...'
             ack_resp = {
                 'success': False,
                 'response': None,
@@ -111,26 +111,32 @@ class HTTPMQClient:
             try:
                 ack_resp['response'] = self.acknowledge(topic, message_id)
                 ack_resp['success'] = True
-                print(f'[{i+1}/{messages_len}] Acked message {message_id} on topic {topic}: {data}', file=output)
+                if output:
+                    print(f'\033[K[{i+1}/{len(messages)}] Acked message {message_id} on topic {topic}: {data}', end='\r')
             except requests.exceptions.RequestException as e:
                 print(f'Acknowledge request failed: {e}')
                 ack_resp['error'] = e
             resp.append(ack_resp)
+        if output:
+            print(f'\033[K', end='\r')
         return resp
-    
+
     @staticmethod
-    def auto_register(server_url: str, key: str = 'auto_register/test7246', ttl: int = 86400, stat: bool = True) -> 'HTTPMQClient':
+    def auto_register(server_url: str, key: str = 'auto-register/test7246', ttl: int = 7200, stat: bool = True) -> 'HTTPMQClient':
             meta_client = HTTPMQClient(server_url, stat=False)
             meta_client.subscribe(key)
             meta_response = meta_client.receive()
             messages = meta_response.get('messages')
+            client = None
             if messages and isinstance(messages, list) and len(messages) > 0:
                 metadata_raw = messages[0].get('data')
                 metadata = json.loads(metadata_raw)
                 if 'session_id' in metadata:
                     session_id = metadata['session_id']
-                    return HTTPMQClient(server_url, session_id, stat=stat)
-            client = HTTPMQClient(server_url, stat=stat)
+                    client = HTTPMQClient(server_url, session_id, stat=stat)
+            if not client:
+                client = HTTPMQClient(server_url, stat=stat)
+            client.auto_register_key = key
             metadata = json.dumps({'session_id': client.session_id})
             meta_client.publish(key, ttl, metadata)
             return client
