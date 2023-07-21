@@ -8,7 +8,7 @@ def input_with_default(prompt, default):
     result = input(f'{prompt} (Default is {default}): ')
     return result if result else default
 
-def receive_func(window, client):
+def receive_func(pad, client, max_y, max_x):
     row = 0
     while True:
         messages = client.receive()
@@ -18,17 +18,20 @@ def receive_func(window, client):
             if len(message_text) > 0:
                 timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(chat_message["timestamp"]))
                 message = f'[{timestamp}] {message_text}'
-                window.addstr(row, 0, message)
-                window.refresh()
+                pad.addstr(row, 0, message)
                 row += 1
+                min_row = 0 if row < max_y else row - max_y
+                pad.noutrefresh(min_row, 0, 0, 0, max_y-3, max_x-1)
+                curses.doupdate()
         time.sleep(1)
 
 def chat(stdscr, client):
     stdscr.nodelay(True)
     max_y, max_x = stdscr.getmaxyx()
-    window = curses.newwin(max_y, max_x, 0, 0)  # create a new window to display messages
+    pad = curses.newpad(1000, max_x)  # create a new pad to store history of messages
+    pad.scrollok(True)  # allow the pad to scroll
 
-    threading.Thread(target=receive_func, args=(window, client), daemon=True).start()
+    threading.Thread(target=receive_func, args=(pad, client, max_y, max_x), daemon=True).start()
 
     input_message = ''  # initialize variable to store user's input message
     while True:
