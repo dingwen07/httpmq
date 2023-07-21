@@ -25,13 +25,15 @@ def register():
 @app.route('/api/publish/<path:topic>', methods=['POST'])
 def publish(topic):
     data = request.json.get('data')
-    ttl = 120
+    ttl = SERVER_SETTINGS['DEFAULT_TTL']
     if 'ttl' in request.json:
         ttl_req = request.json.get('ttl')
         if isinstance(ttl_req, int):
             ttl = ttl_req
         if isinstance(ttl_req, str) and ttl_req.isdigit():
             ttl = int(ttl_req)
+        if ttl < 0:
+            ttl = SERVER_SETTINGS['NEVER_EXPIRE_TTL']
     message = mq.publish(topic, data, ttl)
     return jsonify(status='success', message_id=message.message_id, timestamp=message.timestamp), 200
 

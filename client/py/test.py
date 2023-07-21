@@ -9,9 +9,9 @@ if __name__ == '__main__':
     client = HTTPMQClient.auto_register('http://127.0.0.1:5000', 'auto_register/test7246', 86400)
     print(f'Session ID: {client.session_id}')
     client.subscribe('test')
-    client.publish('test', 3600, 'Hello World!')
+    client.publish('test', 300, 'Hello World!')
     for _ in range(1):
-        client.publish('test', 3600, 'Hello!')
+        client.publish('test', 60, 'Hello!')
     response = client.receive()
     message_len = len(response['messages'])
     print(f'Received {len(response["messages"])} messages')

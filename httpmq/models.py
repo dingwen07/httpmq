@@ -8,6 +8,7 @@ class Message:
         self.topic = topic
         self.data = data
         self.ttl = ttl
+        self.receive_time = time.time()
         self.expire_ts = self.timestamp + ttl
         self.clients_acknowledged: set[str] = set()
     
@@ -19,19 +20,19 @@ class Message:
     
     def __cmp__(self, __value: object) -> int:
         if isinstance(__value, Message):
-            return self.timestamp - __value.timestamp
+            return self.receive_time - __value.receive_time
         else:
             return 0
     
     def __lt__(self, __value: object) -> bool:
         if isinstance(__value, Message):
-            return self.timestamp < __value.timestamp
+            return self.receive_time < __value.receive_time
         else:
             return False
     
     def __gt__(self, __value: object) -> bool:
         if isinstance(__value, Message):
-            return self.timestamp > __value.timestamp
+            return self.receive_time > __value.receive_time
         else:
             return False
     
@@ -54,6 +55,7 @@ class Message:
             'data': self.data,
             'timestamp': self.timestamp,
             'ttl': self.ttl,
+            'receive_time': self.receive_time,
             'expire_ts': self.expire_ts,
             'clients_acknowledged': list(self.clients_acknowledged),
         }

@@ -56,7 +56,7 @@ class MessageQueue:
                     for message in self.topic_messages[topic].values():
                         if message.message_id not in session.acknowledged_messages:
                             messages.append(message)
-                messages.sort()
+                messages.sort(reverse=True)
                 return messages
             return []
 
@@ -65,7 +65,7 @@ class MessageQueue:
             messages: list[Message] = []
             for message in self.topic_messages[topic].values():
                 messages.append(message)
-            messages.sort()
+            messages.sort(reverse=True)
             mapped_messages: list[dict] = map(lambda message: message.to_dict_admin(), messages)
             return mapped_messages
 
