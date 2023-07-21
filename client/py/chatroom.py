@@ -20,7 +20,7 @@ def receive_func(pad, client, max_y, max_x):
                 message = f'[{timestamp}] {message_text}'
                 pad.addstr(row, 0, message)
                 row += 1
-                min_row = 0 if row < max_y else row - max_y
+                min_row = 0 if row < max_y else row - max_y + 2
                 pad.noutrefresh(min_row, 0, 0, 0, max_y-3, max_x-1)
                 curses.doupdate()
         time.sleep(1)
