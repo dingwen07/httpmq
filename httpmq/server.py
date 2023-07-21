@@ -30,7 +30,7 @@ def publish(topic):
         ttl_req = request.json.get('ttl')
         if isinstance(ttl_req, int):
             ttl = ttl_req
-        if isinstance(ttl_req, str) and ttl_req.isdigit():
+        if isinstance(ttl_req, str) and ttl_req.lstrip('-').isdigit():
             ttl = int(ttl_req)
         if ttl < 0:
             ttl = SERVER_SETTINGS['NEVER_EXPIRE_TTL']
