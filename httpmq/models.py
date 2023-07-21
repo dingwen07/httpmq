@@ -1,5 +1,6 @@
 from uuid import uuid4
 import time
+import json
 
 class Message:
     def __init__(self, topic: str, data: str, ttl: int = 3600):
@@ -49,10 +50,17 @@ class Message:
         }
     
     def to_dict_admin(self) -> dict:
+        data = self.data
+        try:
+            data = json.loads(self.data)
+        except:
+            pass
+        if isinstance(data, str) and len(data) > 80:
+            data = self.data[:80] + '...'
         return {
             'message_id': self.message_id,
             'topic': self.topic,
-            'data': self.data,
+            'data': data,
             'timestamp': self.timestamp,
             'ttl': self.ttl,
             'receive_time': self.receive_time,

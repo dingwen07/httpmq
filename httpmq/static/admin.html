@@ -48,7 +48,7 @@
                     messagesList.innerHTML = '';
                     data.messages.forEach(message => {
                         const listItem = document.createElement('li');
-                        listItem.textContent = `Message ID: ${message.message_id}, Data: ${message.data}, Acked By: ${message.clients_acknowledged.length}`;
+                        listItem.textContent = `Message ID: ${message.message_id}, Data: ${JSON.stringify(message.data)}, Acked By: ${message.clients_acknowledged.length}`;
                         messagesList.appendChild(listItem);
                     });
                 })

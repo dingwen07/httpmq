@@ -88,7 +88,7 @@
                 messagesList.innerHTML = '';
                 data.messages.forEach(message => {
                     const listItem = document.createElement('li');
-                    listItem.textContent = `Topic:${message.topic}, Message ID: ${message.message_id}, Data: ${message.data}`;
+                    listItem.textContent = `Topic: ${message.topic}, Message ID: ${message.message_id}, Data: ${message.data}`;
                     messagesList.appendChild(listItem);
                 });
             })
