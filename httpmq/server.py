@@ -35,6 +35,17 @@ def publish(topic):
     message = mq.publish(topic, data, ttl)
     return jsonify(status='success', message_id=message.message_id, timestamp=message.timestamp), 200
 
+@app.route('/api/subscribe', methods=['GET'])
+def get_subscribe():
+    session_id = request.headers.get('Session-Id')
+    if not session_id:
+        session_id = request.args.get('session_id')
+    session = mq.sessions.get(session_id)
+    if session:
+        return jsonify({'topics': list(session.subscribed_topics)}), 200
+    else:
+        return jsonify({'error': 'session_id not found'}), 400
+
 @app.route('/api/subscribe/<path:topic>', methods=['POST'])
 def subscribe(topic):
     session_id = request.headers.get('Session-Id')
