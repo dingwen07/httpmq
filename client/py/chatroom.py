@@ -1,29 +1,35 @@
-import curses
 import time
-import threading
 import platform
+import threading
+import curses
+import curses.textpad
 from httpmqchatroom import HTTPMQChatroom, ChatroomMessage
 
 def input_with_default(prompt, default):
     result = input(f'{prompt} (Default is {default}): ')
     return result if result else default
 
-def receive_func(pad, client, max_y, max_x):
+def receive_func(pad, client, max_y, max_x, stdscr):
     row = 0
     while True:
-        messages = client.receive()
-        messages.sort(key=lambda x: x['timestamp'])
-        for chat_message in messages:
-            message_text = ChatroomMessage.message_to_text(chat_message['data'])
-            if len(message_text) > 0:
-                timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(chat_message["timestamp"]))
-                message = f'[{timestamp}] {message_text}'
-                pad.addstr(row, 0, message)
-                row += 1
-                min_row = 0 if row < max_y else row - max_y + 2
-                pad.noutrefresh(min_row, 0, 0, 0, max_y-3, max_x-1)
-                curses.doupdate()
-        time.sleep(1)
+        try:
+            max_y, max_x = stdscr.getmaxyx()
+            messages = client.receive()
+            messages.sort(key=lambda x: x['timestamp'])
+            for chat_message in messages:
+                message_text = ChatroomMessage.message_to_text(chat_message['data'])
+                if len(message_text) > 0:
+                    timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(chat_message["timestamp"]))
+                    message = f'[{timestamp}] {message_text}'
+                    pad.addstr(row, 0, message)
+                    row += 1
+            min_row = 0 if row < max_y else row - max_y + 2
+            pad.noutrefresh(min_row, 0, 0, 0, max_y-3, max_x-1)
+            curses.doupdate()
+        except:
+            pass
+        finally:
+            time.sleep(0.5)
 
 def chat(stdscr, client):
     stdscr.nodelay(True)
@@ -31,30 +37,40 @@ def chat(stdscr, client):
     pad = curses.newpad(1000, max_x)  # create a new pad to store history of messages
     pad.scrollok(True)  # allow the pad to scroll
 
-    threading.Thread(target=receive_func, args=(pad, client, max_y, max_x), daemon=True).start()
+    threading.Thread(target=receive_func, args=(pad, client, max_y, max_x, stdscr), daemon=True).start()
 
     input_message = ''  # initialize variable to store user's input message
     while True:
         c = stdscr.getch()
         if c != -1:
             if c == ord('\n'):
-                if input_message.startswith("/nickname "):
+                if input_message.startswith('/nickname '):
                     new_nickname = input_message[10:]
                     client.update_nickname(new_nickname)
-                elif input_message == "/leave":
+                elif input_message == '/leave':
                     client.send_leave()
                     break
                 else:
                     client.send_message(input_message)
                 input_message = ''
-            elif c == ord('\b'):
+            elif c == ord('\b') or c == 127:
                 input_message = input_message[:-1]
+            elif c == curses.KEY_RESIZE:
+                max_y, max_x = stdscr.getmaxyx()
+                stdscr.clear()  # clear the terminal to avoid display issues
+                stdscr.refresh()
+                pad.resize(1000, max_x)  # adjust the pad size accordingly
+                continue
             else:
                 input_message += chr(c)
 
         stdscr.move(max_y - 1, 0)
         stdscr.clrtoeol()
-        stdscr.addstr(max_y - 1, 0, f'Input: {input_message}')
+        input_prompt = 'Input: '
+        input_message_display = input_message
+        if len(input_message) + len(input_prompt) > max_x - 1:
+            input_message_display = '... ' + input_message[-(max_x - len(input_prompt) - 5):]
+        stdscr.addstr(max_y - 1, 0, f'Input: {input_message_display}')
 
         stdscr.refresh()
 
