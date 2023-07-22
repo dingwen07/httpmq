@@ -237,6 +237,12 @@ def chat(stdscr, client):
                 stdscr.clear()  # clear the terminal to avoid display issues
                 stdscr.refresh()
                 pad.resize(1000, max_x)  # adjust the pad size accordingly
+            elif ch == curses.KEY_BACKSPACE:
+                if len(input_message) > 0:
+                    input_message = input_message[:input_pos - 1] + input_message[input_pos:]
+                    input_pos -= 1
+                else:
+                    curses.beep()
             elif ch == curses.KEY_LEFT:
                 if len(input_message) <= 0 or input_pos <= 0:
                     curses.beep()
