@@ -10,6 +10,8 @@ class HTTPMQClient:
         self.auto_register_key = None
         self.server_url = server_url
         self.session_id = session_id
+        self.subscribed_topics = []
+        self.auto_resession = True
         self.requests = requests.Session()
         if not session_id:
             self.register()
@@ -43,9 +45,8 @@ class HTTPMQClient:
             response.raise_for_status()
             self.session_id = response.json()['session_id']
             return response.json()
-        except requests.exceptions.RequestException as e:
-            print(f'Registration request failed: {e}')
-            return None
+        except requests.exceptions.RequestException as exception:
+            raise exception
 
     def publish(self, topic: str, ttl: int, data) -> dict:
         if isinstance(data, dict):
@@ -56,30 +57,44 @@ class HTTPMQClient:
                                      data=json.dumps({"ttl": ttl, "data": data}))
             response.raise_for_status()
             return response.json()
-        except requests.exceptions.RequestException as e:
-            print(f'Publish request failed: {e}')
-            return None
+        except requests.exceptions.RequestException as exception:
+            raise exception
 
     def subscribe(self, topic: str) -> dict:
         url = f"{self.server_url}/api/subscribe/{topic}"
-        try:
-            response = self.requests.post(url, headers={"Content-Type": "application/json; charset=utf-8"},
-                                     data=json.dumps({"session_id": self.session_id}))
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            print(f'Subscribe request failed: {e}')
+        if topic not in self.subscribed_topics:
+            self.subscribed_topics.append(topic)
+            try:
+                response = self.requests.post(url, headers={"Content-Type": "application/json; charset=utf-8"},
+                                        data=json.dumps({"session_id": self.session_id}))
+                response.raise_for_status()
+                return response.json()
+            except requests.exceptions.RequestException as exception:
+                if self.auto_resession:
+                    self._resession()
+                    return response.json()
+                else:
+                    raise exception
+        else:
             return None
+        
 
     def unsubscribe(self, topic: str) -> dict:
         url = f"{self.server_url}/api/subscribe/{topic}"
-        try:
-            response = self.requests.delete(url, headers={"Content-Type": "application/json; charset=utf-8"},
-                                       data=json.dumps({"session_id": self.session_id}))
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            print(f'Unsubscribe request failed: {e}')
+        if topic in self.subscribed_topics:
+            self.subscribed_topics.remove(topic)
+            try:
+                response = self.requests.delete(url, headers={"Content-Type": "application/json; charset=utf-8"},
+                                        data=json.dumps({"session_id": self.session_id}))
+                response.raise_for_status()
+                return response.json()
+            except requests.exceptions.RequestException as exception:
+                if self.auto_resession:
+                    self._resession()
+                    return response.json()
+                else:
+                    raise exception
+        else:
             return None
 
     def receive(self) -> dict:
@@ -88,8 +103,11 @@ class HTTPMQClient:
             response = self.requests.get(url, params={"session_id": self.session_id})
             response.raise_for_status()
             return response.json()
-        except requests.exceptions.RequestException as e:
-            print(f'Receive request failed: {e}')
+        except requests.exceptions.RequestException as exception:
+            if self.auto_resession:
+                self._resession()
+            else:
+                raise exception
             return None
 
     def acknowledge(self, topic: str, message_id: str) -> dict:
@@ -99,9 +117,8 @@ class HTTPMQClient:
                                      data=json.dumps({"topic": topic, "message_id": message_id, "session_id": self.session_id}))
             response.raise_for_status()
             return response.json()
-        except requests.exceptions.RequestException as e:
-            print(f'Acknowledge request failed: {e}')
-            return None
+        except requests.exceptions.RequestException:
+            return response.json()
     
     def ack_all(self, messages: list[dict], output: bool = True) -> list[dict]:
         resp = []
@@ -123,13 +140,21 @@ class HTTPMQClient:
                 ack_resp['success'] = True
                 if output:
                     print(f'\033[K[{i+1}/{len(messages)}] Acked message {message_id} on topic {topic}: {data}', end='\r')
-            except requests.exceptions.RequestException as e:
-                print(f'Acknowledge request failed: {e}')
-                ack_resp['error'] = e
+            except requests.exceptions.RequestException as exception:
+                ack_resp['error'] = exception
             resp.append(ack_resp)
         if output:
             print(f'\033[K', end='\r')
         return resp
+    
+    def _resession(self):
+        if not self.auto_resession:
+            return
+        self.register()
+        for topic in self.subscribed_topics:
+            url = f"{self.server_url}/api/subscribe/{topic}"
+            response = self.requests.post(url, headers={"Content-Type": "application/json; charset=utf-8"},
+                                    data=json.dumps({"session_id": self.session_id}))
 
     @staticmethod
     def auto_register(server_url: str, key: str = 'auto-register/test7246', ttl: int = 7200, stat: bool = True) -> 'HTTPMQClient':
