@@ -52,7 +52,11 @@ def receive_func(pad, client, max_y, max_x, stdscr, screen_control_queue):
             messages = client.receive()
             messages.sort(key=lambda x: x['timestamp'])
             for chat_message in messages:
-                message_text = ChatroomMessage.message_to_text(chat_message['data'])
+                topic = chat_message['topic']
+                chatroom_id = ''
+                if topic.startswith(f'{HTTPMQChatroom.CHATROOM_APP}/'):
+                    chatroom_id = topic[len(f'{HTTPMQChatroom.CHATROOM_APP}/'):]
+                message_text = ChatroomMessage.message_to_text(chat_message['data'], chatroom_id)
                 if len(message_text) > 0:
                     timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(chat_message["timestamp"]))
                     message = f'[{timestamp}] {message_text}'
@@ -86,8 +90,8 @@ def chat(stdscr, client):
     threading.Thread(target=receive_func, args=(pad, client, max_y, max_x, stdscr, screen_control_queue), daemon=True).start()
 
     input_prompt = 'Input: '
-    leave_prompt = '/Press Enter now or Hit Ctrl-C again to Leave'
-    leave_commands = ['/leave', '/quit', '/exit', leave_prompt]
+    exit_prompt = '/Press Enter now or Hit Ctrl-C again to Exit'
+    exit_commands = ['/quit', '/exit', exit_prompt]
     input_message = ''  # initialize variable to store user's input message
     stdscr.addstr(max_y - 1, 0, f'Input: {input_message}')
     curses.setsyx(max_y - 1, len(input_prompt))
@@ -103,7 +107,25 @@ def chat(stdscr, client):
                     if input_message.startswith('/nickname '):
                         new_nickname = input_message[10:]
                         client.update_nickname(new_nickname)
-                    elif input_message in leave_commands:
+                    elif input_message.startswith('/join '):
+                        new_chatroom_id = input_message[6:]
+                        client.add_chatroom(new_chatroom_id)
+                        client.switch_chatroom(new_chatroom_id)
+                        client.send_join()
+                    elif input_message.startswith('/subscribe '):
+                        new_chatroom_id = input_message[12:]
+                        client.add_chatroom(new_chatroom_id)
+                        old_chatroom_id = client.chatroom_id
+                        client.switch_chatroom(new_chatroom_id)
+                        client.send_join()
+                        client.switch_chatroom(old_chatroom_id)
+                    elif input_message.startswith('/leave '):
+                        leave_chatroom_id = input_message[7:]
+                        client.remove_chatroom(leave_chatroom_id)
+                    elif input_message.startswith('/switch '):
+                        switch_chatroom_id = input_message[8:]
+                        client.switch_chatroom(switch_chatroom_id)
+                    elif input_message in exit_commands:
                         raise KeyboardInterrupt
                     elif input_message == '/clear':
                         screen_control_queue.put(0)
@@ -119,6 +141,12 @@ def chat(stdscr, client):
                     input_message = ''
                 elif ch == '\b' or ch == '\x7f':
                     input_message = input_message[:-1]
+                # tab completion
+                elif ch == '\t' and input_message.startswith('/'):
+                    commands = ['/nickname ', '/join ', '/subscribe ', '/leave ', '/switch ', '/clear', '/help', '/quit', '/exit']
+                    matched_commands = [command for command in commands if command.startswith(input_message)]
+                    if len(matched_commands) == 1:
+                        input_message = matched_commands[0]
                 else:
                     input_message += ch
             elif ch == curses.KEY_RESIZE:
@@ -138,7 +166,7 @@ def chat(stdscr, client):
 
             # time.sleep(0.01)
         except KeyboardInterrupt:
-            if input_message in leave_commands:
+            if input_message in exit_commands:
                 client.send_leave()
                 curses.nocbreak()
                 stdscr.keypad(False)
@@ -147,7 +175,7 @@ def chat(stdscr, client):
                 print('Bye')
                 exit(0)
             else:
-                input_message = leave_prompt
+                input_message = exit_prompt
                 stdscr.nodelay(True)
         except Exception as e:
             print(e)

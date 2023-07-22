@@ -8,14 +8,19 @@ from httpmqclient import HTTPMQClient
 CHATROOM_APP = 'HTTPMQChatroom'
 
 class HTTPMQChatroom:
+    CHATROOM_APP = CHATROOM_APP
+    
     def __init__(self, server_url: str, chatroom_id: str, auto_register_key: str = None):
         self.server_url = server_url
         self.chatroom_id = chatroom_id
         self.topic = f'{CHATROOM_APP}/{chatroom_id}'
+        self.chatroom_ids = [chatroom_id]
         if not auto_register_key:
             self.client = HTTPMQClient(server_url)
         else:
             self.client = HTTPMQClient.auto_register(server_url, auto_register_key, 7200)
+        if not self.client.session_id:
+            raise ValueError('Unable to connect to server')
         self.client.subscribe(self.topic)
         try:
             self.client.ack_all(self.client.receive()['messages'], output=False)
@@ -35,7 +40,7 @@ class HTTPMQChatroom:
                         data_dict = json.loads(message['data'])
                         message['data'] = ChatroomMessage.from_dict(data_dict)
                     except:
-                        logging.warning(f'Failed to parse message: {message}')
+                        logging.info(f'Failed to parse message: {message}')
                         message['data'] = None
                 ret = []
                 for message in messages:
@@ -43,6 +48,30 @@ class HTTPMQChatroom:
                         ret.append(message)
                 return ret
         return []
+    
+    def add_chatroom(self, chatroom_id: str):
+        if chatroom_id in self.chatroom_ids:
+            return
+        topic = f'{CHATROOM_APP}/{chatroom_id}'
+        self.chatroom_ids.append(chatroom_id)
+        self.client.subscribe(topic)
+    
+    def remove_chatroom(self, chatroom_id: str):
+        if chatroom_id not in self.chatroom_ids:
+            return
+        topic = f'{CHATROOM_APP}/{chatroom_id}'
+        self.chatroom_ids.remove(chatroom_id)
+        self.client.unsubscribe(topic)
+        if self.chatroom_id == chatroom_id:
+            self.chatroom_id = self.chatroom_ids[0]
+            self.topic = f'{CHATROOM_APP}/{self.chatroom_id}'
+    
+    def switch_chatroom(self, chatroom_id: str):
+        if not chatroom_id in self.chatroom_ids:
+            return
+        topic = f'{CHATROOM_APP}/{chatroom_id}'
+        self.topic = topic
+        self.chatroom_id = chatroom_id
     
     def broadcast_info(self):
         chatroom_message = ChatroomMessage(ChatroomMessageTypes.CTRL_INFO, '')
@@ -104,7 +133,7 @@ class ChatroomMessage:
         return ChatroomMessage(ChatroomMessageTypes(message_dict['type']), message_dict['body'], message_dict['meta'])
 
     @staticmethod
-    def message_to_text(message: 'ChatroomMessage') -> str:
+    def message_to_text(message: 'ChatroomMessage', chatroom_id = '') -> str:
         msg_str = ''
         nickname = ''
         meta = message.meta
@@ -112,6 +141,10 @@ class ChatroomMessage:
             nickname = meta.get('nickname')
             if not nickname:
                 nickname = 'Anonymous'
+        if len(nickname) > 9:
+            nickname = nickname[:9] + '~'
+        if chatroom_id != '':
+            nickname += f'@{chatroom_id}'
         if message.type == ChatroomMessageTypes.CHAT_CHAT:
             msg_str += f'{nickname}: '
             msg_str += message.body
