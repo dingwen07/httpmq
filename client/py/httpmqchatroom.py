@@ -133,6 +133,7 @@ class HTTPMQChatroom:
     def send_join(self):
         chatroom_message = ChatroomMessage(ChatroomMessageTypes.CTRL_JOIN, '')
         self._publish(chatroom_message)
+        self.discovery_dispatch()
     
     def send_leave(self):
         chatroom_message = ChatroomMessage(ChatroomMessageTypes.BCST_LEAVE, '')

@@ -21,6 +21,7 @@ Commands:
                               chatroom)
     /switch <chatroom_id>     Switch to a chatroom, you must first subscribe
                               to the chatroom
+    /discovery <on|off>       Enable or disable chatroom discovery
     /[list|ls]                List joined chatrooms
     /clear                    Clear the screen
     /help                     Show this help message
