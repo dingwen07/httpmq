@@ -55,6 +55,10 @@ class HTTPMQChatroom:
         topic = f'{CHATROOM_APP}/{chatroom_id}'
         self.chatroom_ids.append(chatroom_id)
         self.client.subscribe(topic)
+        try:
+            self.client.ack_all(self.client.receive()['messages'], output=False)
+        except:
+            pass
     
     def remove_chatroom(self, chatroom_id: str):
         if chatroom_id not in self.chatroom_ids:
@@ -62,6 +66,8 @@ class HTTPMQChatroom:
         topic = f'{CHATROOM_APP}/{chatroom_id}'
         self.chatroom_ids.remove(chatroom_id)
         self.client.unsubscribe(topic)
+        if len(self.chatroom_ids) == 0:
+            self.add_chatroom('default')
         if self.chatroom_id == chatroom_id:
             self.chatroom_id = self.chatroom_ids[0]
             self.topic = f'{CHATROOM_APP}/{self.chatroom_id}'
@@ -141,8 +147,8 @@ class ChatroomMessage:
             nickname = meta.get('nickname')
             if not nickname:
                 nickname = 'Anonymous'
-        if len(nickname) > 9:
-            nickname = nickname[:9] + '~'
+        if len(nickname) > 12:
+            nickname = nickname[:11] + '~'
         if chatroom_id != '':
             nickname += f'@{chatroom_id}'
         if message.type == ChatroomMessageTypes.CHAT_CHAT:
