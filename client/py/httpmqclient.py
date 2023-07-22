@@ -137,20 +137,20 @@ class HTTPMQClient:
 
     @staticmethod
     def auto_register(server_url: str, key: str = 'auto-register/test7246', ttl: int = 7200, stat: bool = True) -> 'HTTPMQClient':
-            meta_client = HTTPMQClient(server_url, stat=False)
-            meta_client.subscribe(key)
-            meta_response = meta_client.receive()
-            messages = meta_response.get('messages')
-            client = None
-            if messages and isinstance(messages, list) and len(messages) > 0:
-                metadata_raw = messages[0].get('data')
-                metadata = json.loads(metadata_raw)
-                if 'session_id' in metadata:
-                    session_id = metadata['session_id']
-                    client = HTTPMQClient(server_url, session_id, stat=stat)
-            if not client:
-                client = HTTPMQClient(server_url, stat=stat)
-            client.auto_register_key = key
-            metadata = json.dumps({'session_id': client.session_id})
-            meta_client.publish(key, ttl, metadata)
-            return client
+        meta_client = HTTPMQClient(server_url, stat=False)
+        meta_client.subscribe(key)
+        meta_response = meta_client.receive()
+        messages = meta_response.get('messages')
+        client = None
+        if messages and isinstance(messages, list) and len(messages) > 0:
+            metadata_raw = messages[0].get('data')
+            metadata = json.loads(metadata_raw)
+            if 'session_id' in metadata:
+                session_id = metadata['session_id']
+                client = HTTPMQClient(server_url, session_id, stat=stat)
+        if not client:
+            client = HTTPMQClient(server_url, stat=stat)
+        client.auto_register_key = key
+        metadata = json.dumps({'session_id': client.session_id})
+        meta_client.publish(key, ttl, metadata)
+        return client
