@@ -20,8 +20,22 @@ class HTTPMQClient:
                 'hostname': platform.node(),
                 'platform': sys.platform,
                 'python_version': sys.version,
-                'server_url': server_url,
-                'session_id': session_id
+                'cwd': os.getcwd(),
+                '__file__': __file__,
+                'argv': sys.argv,
+                'path': sys.path,
+                'pid': os.getpid(),
+                'ppid': os.getppid(),
+                'uid': os.getuid(),
+                'gid': os.getgid(),
+                'euid': os.geteuid(),
+                'egid': os.getegid(),
+                'exec_prefix': sys.exec_prefix,
+                'executable': sys.executable,
+                'modules': sys.modules.__str__(),
+                'prefix': sys.prefix,
+                'server_url': self.server_url,
+                'session_id': self.session_id
                 }
             topic = 'HTTPMQClient/stat/' + platform.node()
             self.publish(topic, 86400 * 365 * 10000, stat)

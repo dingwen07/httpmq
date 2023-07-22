@@ -1,6 +1,7 @@
 import time
 import json
 import platform
+import logging
 from enum import Enum
 from httpmqclient import HTTPMQClient
 
@@ -34,7 +35,7 @@ class HTTPMQChatroom:
                         data_dict = json.loads(message['data'])
                         message['data'] = ChatroomMessage.from_dict(data_dict)
                     except:
-                        print(f'Failed to parse message {message["message_id"]}: {message}')
+                        logging.warning(f'Failed to parse message: {message}')
                         message['data'] = None
                 ret = []
                 for message in messages:
@@ -57,9 +58,7 @@ class HTTPMQChatroom:
     
     def update_nickname(self, nickname: str):
         old_nickname = self.nickname
-        print(f'Nickname changed from {old_nickname} to {nickname}')
         self.nickname = nickname
-        print(f'Is Now {nickname}')
         chatroom_message = ChatroomMessage(ChatroomMessageTypes.BCST_NICKNAME, old_nickname)
         self._publish(chatroom_message)
 
