@@ -172,10 +172,28 @@ def chat(stdscr, client):
                     elif input_message.startswith('/switch '):
                         switch_chatroom_id = input_message[8:]
                         client.switch_chatroom(switch_chatroom_id)
+                    elif input_message.startswith('/discovery '):
+                        if input_message[11:] == 'on':
+                            client.discovery(True)
+                            client.discovery_dispatch()
+                        elif input_message[11:] == 'off':
+                            client.discovery(False)
+                            client.discovery_dispatch()
+                        else:
+                            curses.beep()
+                            continue
                     elif input_message == '/list' or input_message == '/ls':
+                        client.discover_chatrooms()
+                        client.chatroom_ids.sort()
+                        client.discovered_chatroom_ids.sort()
                         ls_message = '\nJoined Chatrooms: \n'
                         for chatroom_id in client.chatroom_ids:
                             ls_message += f'\t{chatroom_id}\n'
+                        ls_message += 'Discovered Chatrooms: \n'
+                        for chatroom_id in client.discovered_chatroom_ids:
+                            ls_message += f'\t{chatroom_id}\n'
+                        if not client.discovery_enabled:
+                            ls_message += '\nDiscovery is Not Enabled\n'
                         pad.addstr(ls_message)
                         pad.noutrefresh(0, 0, 0, 0, max_y-3, max_x-1)
                         curses.setsyx(max_y - 1, len(input_prompt))
@@ -195,6 +213,7 @@ def chat(stdscr, client):
                         continue
                     elif input_message != '':
                         client.send_message(input_message)
+                        client.discovery_dispatch()
                     else:
                         curses.beep()
                         continue
@@ -214,15 +233,37 @@ def chat(stdscr, client):
                 elif ch == '\t' and input_message.startswith('/'):
                     # match chatroom
                     if input_message.startswith('/switch ') or input_message.startswith('/leave '):
-                        chatroom_id_incomplete = input_message[7:]
-                        chatroom_id_incomplete = chatroom_id_incomplete.lstrip()
+                        chatroom_id_incomplete = input_message.split(' ', maxsplit=1)[1]
                         matched_chatroom_ids = [chatroom_id for chatroom_id in client.chatroom_ids if chatroom_id.startswith(chatroom_id_incomplete)]
                         if len(matched_chatroom_ids) == 1:
+                            input_message = input_message.split(' ', maxsplit=1)[0] + ' ' + matched_chatroom_ids[0]
+                            input_pos = len(input_message)
+                        if len(matched_chatroom_ids) > 1:
+                            matched_chatroom_ids.sort(key=len)
                             input_message = input_message.split(' ')[0] + ' ' + matched_chatroom_ids[0]
+                            input_pos = len(input_message)
+                    # match discovery
+                    if input_message.startswith('/join ') or input_message.startswith('/subscribe '):
+                        chatroom_id_incomplete = input_message.split(' ', maxsplit=1)[1]
+                        chatroom_id_incomplete = chatroom_id_incomplete.lstrip()
+                        matched_chatroom_ids = [chatroom_id for chatroom_id in client.discovered_chatroom_ids if chatroom_id.startswith(chatroom_id_incomplete)]
+                        if len(matched_chatroom_ids) == 1:
+                            input_message = input_message.split(' ', maxsplit=1)[0] + ' ' + matched_chatroom_ids[0]
+                            input_pos = len(input_message)
+                        elif len(matched_chatroom_ids) > 1:
+                            matched_chatroom_ids.sort(key=len)
+                            input_message = input_message.split(' ')[0] + ' ' + matched_chatroom_ids[0]
+                            input_pos = len(input_message)
+                    # match discovery command
+                    elif input_message.startswith('/discovery '):
+                        commands = ['on', 'off']
+                        matched_commands = [command for command in commands if command.startswith(input_message[11:])]
+                        if len(matched_commands) == 1:
+                            input_message = input_message.split(' ')[0] + ' ' + matched_commands[0]
                             input_pos = len(input_message)
                     # match command
                     elif input_message.startswith('/'):
-                        commands = ['/nickname ', '/join ', '/subscribe ', '/leave ', '/switch ', '/clear', '/list', '/help', '/quit', '/exit']
+                        commands = ['/nickname ', '/join ', '/subscribe ', '/leave ', '/switch ', '/discovery ', '/clear', '/list', '/help', '/quit', '/exit']
                         matched_commands = [command for command in commands if command.startswith(input_message)]
                         if len(matched_commands) == 1:
                             input_message = matched_commands[0]
@@ -294,7 +335,7 @@ def chat(stdscr, client):
                 input_message = exit_prompt
                 stdscr.nodelay(True)
         except Exception as e:
-            print(e)
+            raise
 
 if __name__ == '__main__':
     if USE_WCWIDTH:
@@ -306,13 +347,20 @@ if __name__ == '__main__':
         server_url = input_with_default('Server URL: ', 'http://127.0.0.1:5002')
         chatroom_id = input_with_default('Chatroom ID: ', 'test')
         nickname = input_with_default('Nickname: ', platform.node())
-        auto_register_key = input_with_default('Auto register key: ', None)
+        enable_discovery = input_with_default('Enable Discovery? (y/n): ', 'y')
+        if enable_discovery == 'y':
+            enable_discovery = True
+        else:
+            enable_discovery = False
+        auto_register_key = None
     except KeyboardInterrupt:
         print('\nKeyboardInterrupt')
         exit(0)
 
     client = HTTPMQChatroom(server_url, chatroom_id, auto_register_key)
     client.nickname = nickname
+    if enable_discovery:
+        client.discovery(True)
 
     client.broadcast_info()
     client.send_join()

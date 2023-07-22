@@ -15,6 +15,10 @@ class HTTPMQChatroom:
         self.chatroom_id = chatroom_id
         self.topic = f'{CHATROOM_APP}/{chatroom_id}'
         self.chatroom_ids = [chatroom_id]
+        self.discovery_enabled = False
+        self.discovery_topic = f'{CHATROOM_APP}'
+        self.discovery_client = HTTPMQClient(server_url)
+        self.discovered_chatroom_ids = []
         if not auto_register_key:
             self.client = HTTPMQClient(server_url)
         else:
@@ -28,8 +32,10 @@ class HTTPMQChatroom:
             pass
         self.nickname = platform.node()
     
-    def receive(self) -> list[dict]:
-        resp = self.client.receive()
+    def receive(self, client: 'HTTPMQClient' = None) -> list[dict]:
+        if not client:
+            client = self.client
+        resp = client.receive()
         if resp:
             messages = resp['messages']
             if messages:
@@ -59,6 +65,9 @@ class HTTPMQChatroom:
             self.client.ack_all(self.client.receive()['messages'], output=False)
         except:
             pass
+        if chatroom_id in self.discovered_chatroom_ids:
+            self.discovered_chatroom_ids.remove(chatroom_id)
+        self.discovery_dispatch()
     
     def remove_chatroom(self, chatroom_id: str):
         if chatroom_id not in self.chatroom_ids:
@@ -78,6 +87,44 @@ class HTTPMQChatroom:
         topic = f'{CHATROOM_APP}/{chatroom_id}'
         self.topic = topic
         self.chatroom_id = chatroom_id
+    
+    def discovery(self, enable: bool):
+        if self.discovery_enabled == enable:
+            return
+        if enable:
+            self.discovery_client.subscribe(self.discovery_topic)
+        else:
+            self.discovery_client.unsubscribe(self.discovery_topic)
+        self.discovery_enabled = enable
+    
+    def discover_chatrooms(self):
+        if not self.discovery_enabled:
+            return
+        resp = self.discovery_client.receive()
+        if resp:
+            messages = resp['messages']
+            if messages:
+                bcst_discovery_messages = []
+                for message in messages:
+                    if message['topic'] == self.discovery_topic:
+                        bcst_discovery_messages.append(message)
+                        if 'data' in message:
+                            data_dict = json.loads(message['data'])
+                            if body := data_dict.get('body'):
+                                discovered_chatroom_ids = body
+                                if isinstance(discovered_chatroom_ids, list):
+                                    for discovered_chatroom_id in discovered_chatroom_ids:
+                                        if discovered_chatroom_id not in self.chatroom_ids and discovered_chatroom_id not in self.discovered_chatroom_ids:
+                                            self.discovered_chatroom_ids.append(discovered_chatroom_id)
+                self.discovery_client.ack_all(bcst_discovery_messages, output=False)
+    
+    def discovery_dispatch(self):
+        if not self.discovery_enabled:
+            return
+        if len(self.chatroom_ids + self.discovered_chatroom_ids) > 0:
+            chatroom_ids = self.chatroom_ids.copy() + self.discovered_chatroom_ids.copy()
+            dispatch_message = ChatroomMessage(ChatroomMessageTypes.BCST_DISCOVERY, chatroom_ids)
+            self.discovery_client.publish(self.discovery_topic, ChatroomMessageTypes.types.value[dispatch_message.type.value]['ttl'], data=dispatch_message.to_dict())
     
     def broadcast_info(self):
         chatroom_message = ChatroomMessage(ChatroomMessageTypes.CTRL_INFO, '')
@@ -122,7 +169,7 @@ class HTTPMQChatroom:
 
 
 class ChatroomMessage:
-    def __init__(self, message_type: 'ChatroomMessageTypes', message_body: str, message_meta: dict = {}):
+    def __init__(self, message_type: 'ChatroomMessageTypes', message_body: any, message_meta: dict = {}):
         self.type = message_type
         self.body = message_body
         self.meta = message_meta
@@ -169,6 +216,7 @@ class ChatroomMessageTypes(Enum):
     CTRL_INFO = 'ctrl-info'
     BCST_LEAVE = 'bcst-leave'
     BCST_NICKNAME = 'bcst-nickname'
+    BCST_DISCOVERY = 'bcst-discovery'
 
     types = {
         'chat-chat': {
@@ -185,6 +233,9 @@ class ChatroomMessageTypes(Enum):
         },
         'bcst-nickname': {
             'ttl': 300,
+        },
+        'bcst-discovery': {
+            'ttl': 3600,
         },
     }
 
