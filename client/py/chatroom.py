@@ -58,14 +58,14 @@ def receive_func(pad, client, max_y, max_x, stdscr, screen_control_queue):
                     chatroom_id = topic[len(f'{HTTPMQChatroom.CHATROOM_APP}/'):]
                 message_text = ChatroomMessage.message_to_text(chat_message['data'], chatroom_id)
                 if len(message_text) > 0:
-                    timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(chat_message["timestamp"]))
+                    timestamp = time.strftime("%y-%m-%d %H:%M:%S", time.localtime(chat_message["timestamp"]))
                     message = f'[{timestamp}] {message_text}'
                     pad.addstr(row, 0, message)
                     screen_content.append(message)
                     row += int((len(message) - 1) / max_x) + 1
                     refresh = True
             if refresh:
-                min_row = 0 if row < max_y else row - max_y + 2
+                min_row = 0 if row < max_y - 1 else row - max_y + 2
                 pad.noutrefresh(min_row, 0, 0, 0, max_y-3, max_x-1)
                 curses.setsyx(y, x)
             curses.doupdate()
@@ -135,12 +135,19 @@ def chat(stdscr, client):
                         curses.setsyx(max_y - 1, len(input_prompt))
                         screen_control_queue.put(HELP_MESSAGE.count('\n'))
                     elif input_message.startswith('/'):
+                        curses.beep()
                         continue
                     elif input_message != '':
                         client.send_message(input_message)
+                    else:
+                        curses.beep()
+                        continue
                     input_message = ''
                 elif ch == '\b' or ch == '\x7f':
-                    input_message = input_message[:-1]
+                    if len(input_message) > 0:
+                        input_message = input_message[:-1]
+                    else:
+                        curses.beep()
                 # tab completion
                 elif ch == '\t' and input_message.startswith('/'):
                     commands = ['/nickname ', '/join ', '/subscribe ', '/leave ', '/switch ', '/clear', '/help', '/quit', '/exit']
