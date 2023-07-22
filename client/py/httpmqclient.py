@@ -51,7 +51,7 @@ class HTTPMQClient:
             print(f'Registration request failed: {e}')
             return None
 
-    def publish(self, topic: str, ttl: int, data: str | dict) -> dict:
+    def publish(self, topic: str, ttl: int, data) -> dict:
         if isinstance(data, dict):
             data = json.dumps(data)
         url = f"{self.server_url}/api/publish/{topic}"
