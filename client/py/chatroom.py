@@ -149,7 +149,7 @@ def chat(stdscr, client):
             if isinstance(ch, str):
                 if ch == '\n':
                     input_history_pos = 0
-                    if len(input_history) == 0 or input_message != input_history[-1]:
+                    if len(input_message) != 0 and (len(input_history) == 0 or input_message != input_history[-1]):
                         input_history.append(input_message)
                     if input_message.startswith('/nickname '):
                         new_nickname = input_message[10:]
@@ -184,7 +184,7 @@ def chat(stdscr, client):
                         raise KeyboardInterrupt
                     elif input_message == '/clear':
                         screen_control_queue.put(0)
-                    elif input_message == '/help':
+                    elif input_message == '/help' or input_message == '/?':
                         pad.addstr(HELP_MESSAGE)
                         pad.noutrefresh(0, 0, 0, 0, max_y-3, max_x-1)
                         curses.setsyx(max_y - 1, len(input_prompt))
