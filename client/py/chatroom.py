@@ -303,7 +303,7 @@ if __name__ == '__main__':
         logging.warning('wcwidth is not installed, some characters may not be displayed correctly after arrow keys are pressed')
 
     try:
-        server_url = input_with_default('Server URL: ', 'http://127.0.0.1:5000')
+        server_url = input_with_default('Server URL: ', 'http://127.0.0.1:5002')
         chatroom_id = input_with_default('Chatroom ID: ', 'test')
         nickname = input_with_default('Nickname: ', platform.node())
         auto_register_key = input_with_default('Auto register key: ', None)

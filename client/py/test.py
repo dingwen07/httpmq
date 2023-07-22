@@ -3,7 +3,7 @@ import platform
 from httpmqclient import HTTPMQClient
 
 if __name__ == '__main__':
-    client = HTTPMQClient.auto_register('http://127.0.0.1:5000', f'auto-register/{platform.node()}', 86400)
+    client = HTTPMQClient.auto_register('http://127.0.0.1:5002', f'auto-register/{platform.node()}', 86400)
     print(f'Session ID: {client.session_id}')
     topic = 'HTTPMQChatroom/test'
     client.subscribe(topic)
