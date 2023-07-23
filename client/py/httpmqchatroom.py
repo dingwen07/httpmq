@@ -19,6 +19,8 @@ class HTTPMQChatroom:
         self.discovery_topic = f'{CHATROOM_APP}'
         self.discovery_client = HTTPMQClient(server_url)
         self.discovered_chatroom_ids = []
+        self.last_discovery_dispatch_time = 0
+        self.last_discovery_dispatch_set: set[str] = set()
         if not auto_register_key:
             self.client = HTTPMQClient(server_url)
         else:
@@ -124,7 +126,12 @@ class HTTPMQChatroom:
         if len(self.chatroom_ids + self.discovered_chatroom_ids) > 0:
             chatroom_ids = self.chatroom_ids.copy() + self.discovered_chatroom_ids.copy()
             dispatch_message = ChatroomMessage(ChatroomMessageTypes.BCST_DISCOVERY, chatroom_ids)
+            dispatch_set = set(chatroom_ids)
+            if time.time() - self.last_discovery_dispatch_time < 1800 and dispatch_set == self.last_discovery_dispatch_set:
+                return
             self.discovery_client.publish(self.discovery_topic, ChatroomMessageTypes.types.value[dispatch_message.type.value]['ttl'], data=dispatch_message.to_dict())
+            self.last_discovery_dispatch_time = time.time()
+            self.last_discovery_dispatch_set = dispatch_set
     
     def broadcast_info(self):
         chatroom_message = ChatroomMessage(ChatroomMessageTypes.CTRL_INFO, '')

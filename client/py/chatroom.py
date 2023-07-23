@@ -7,7 +7,7 @@ import logging
 import curses
 import curses.textpad
 import curses.ascii
-from httpmqchatroom import HTTPMQChatroom, ChatroomMessage
+from httpmqchatroom import HTTPMQChatroom, ChatroomMessage, ChatroomMessageTypes
 
 HELP_MESSAGE = '''\
 
@@ -103,6 +103,8 @@ def receive_func(pad, client, max_y, max_x, stdscr, screen_control_queue):
                     screen_content.append(message)
                     row += int((len(message) - 1) / max_x) + 1
                     refresh = True
+                if chat_message['data'].type == ChatroomMessageTypes.CTRL_JOIN:
+                    client.discovery_dispatch()
             if refresh:
                 min_row = 0 if row < max_y - 1 else row - max_y + 2
                 pad.noutrefresh(min_row, 0, 0, 0, max_y-3, max_x-1)
